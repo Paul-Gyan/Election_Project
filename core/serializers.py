@@ -4,7 +4,7 @@ from .models import Candidate, PollingCenter, VoteSubmission
 class CandidateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Candidate
-        fields = ['id', 'name']  # ✅ 'party' removed
+        fields = ['id', 'name']  
 
 class PollingCenterSerializer(serializers.ModelSerializer):
     class Meta:
