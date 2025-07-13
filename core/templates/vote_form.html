@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Election Results Dashboard</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+  <style>
+    .candidate-card {
+      background: #fff;
+      border-radius: 1rem;
+      padding: 1.5rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      transition: 0.3s ease;
+    }
+    .candidate-card:hover {
+      transform: translateY(-3px);
+    }
+    .vote-percent {
+      font-weight: 600;
+      color: #198754;
+    }
+  </style>
+</head>
+<body class="container py-5">
+
+  <header class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="text-primary">📊 Election Results Dashboard</h2>
+    {% if user.is_authenticated %}
+      <form method="post" action="{% url 'logout' %}?next={{ request.path }}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Logout</button>
+      </form>
+    {% endif %}
+  </header>
+
+  <section class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white">
+      <h5 class="text-primary mb-0">🔎 Filter Results</h5>
+    </div>
+    <div class="card-body">
+      <form method="get" id="filterFormEl" class="row g-3 align-items-end">
+        <div class="col-md-6">
+          <label class="form-label">🌍 Region</label>
+          <select name="region" id="regionSelect" class="form-select select2" data-placeholder="Select a region">
+            <option value=""></option>
+            {% for region in all_regions %}
+              <option value="{{ region }}" {% if region == selected_region %}selected{% endif %}>{{ region }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">🏛️ Constituency</label>
+          <select name="constituency" id="constituencySelect" class="form-select select2" data-placeholder="Select a constituency">
+            <option value=""></option>
+            {% for cons in all_constituencies %}
+              <option value="{{ cons }}" {% if cons == selected_constituency %}selected{% endif %}>{{ cons }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  {% if selected_region or selected_constituency %}
+    <div class="mb-3">
+      {% if selected_region %}<span class="badge bg-primary me-2">Region: {{ selected_region }}</span>{% endif %}
+      {% if selected_constituency %}<span class="badge bg-success">Constituency: {{ selected_constituency }}</span>{% endif %}
+    </div>
+  {% endif %}
+
+  <section class="d-flex gap-2 mb-4">
+    <a href="{% url 'export-pdf' %}" class="btn btn-outline-danger">⬇️ Export PDF</a>
+    <a href="{% url 'export-excel' %}" class="btn btn-outline-success">⬇️ Export Excel</a>
+  </section>
+
+  <canvas id="resultsChart" height="100" class="mb-5"></canvas>
+
+  {% if aggregated_results %}
+    <div class="row justify-content-center">
+      {% for r in aggregated_results %}
+      <div class="col-md-6">
+        <div class="candidate-card">
+          <h5 class="fw-bold text-dark">🧑 {{ r.candidate }}</h5>
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="text-secondary">🗳️ {{ r.votes }} votes</span>
+            <span class="vote-percent">{{ r.percentage }}%</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="alert alert-warning text-center">No results found for your filters.</div>
+  {% endif %}
+
+  <script>
+    const ctx = document.getElementById('resultsChart');
+    const chartData = {
+      labels: [{% for r in aggregated_results %}'{{ r.candidate }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+      datasets: [
+        {
+          label: 'Votes',
+          data: [{% for r in aggregated_results %}{{ r.votes }}{% if not forloop.last %},{% endif %}{% endfor %}],
+          backgroundColor: [
+            'rgba(255, 99, 132, 0.8)',
+            'rgba(54, 162, 235, 0.8)',
+            'rgba(255, 206, 86, 0.8)',
+            'rgba(75, 192, 192, 0.8)',
+            'rgba(153, 102, 255, 0.8)',
+            'rgba(255, 159, 64, 0.8)',
+            'rgba(100, 255, 218, 0.8)'
+          ],
+          borderRadius: 5,
+          borderWidth: 1
+        }
+      ]
+    };
+
+    new Chart(ctx, {
+      type: 'bar',
+      data: chartData,
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          title: {
+            display: true,
+            text: '📊 Aggregated Votes per Candidate',
+            font: { size: 16 },
+            padding: { top: 10, bottom: 30 }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'Candidates' },
+            grid: { display: false, drawBorder: false }
+          },
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Votes' },
+            grid: { display: false, drawBorder: false }
+          }
+        }
+      }
+    });
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <script>
+    $(function () {
+      $('.select2').select2({
+        width: '100%',
+        allowClear: true,
+        placeholder: function () {
+          return $(this).data('placeholder');
+        },
+        language: { noResults: () => 'No matching records found' }
+      });
+
+      $('#regionSelect').on('change', function () {
+        const region = $(this).val();
+        const constituencySelect = $('#constituencySelect');
+        constituencySelect.empty().append('<option value="">Loading...</option>');
+
+        fetch(`/ajax/get-constituencies/?region=${encodeURIComponent(region)}`)
+          .then(res => res.json())
+          .then(data => {
+            constituencySelect.empty().append('<option value="">Select a constituency</option>');
+            data.constituencies.forEach(name => {
+              constituencySelect.append(new Option(name, name));
+            });
+          });
+
+        $('#filterFormEl').submit();
+      });
+
+      $('#constituencySelect').on('change', function () {
+        $('#filterFormEl').submit();
+      });
+    });
+  </script>
+</body>
+</html>
